@@ -4,25 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PDF Filler Pro - כלי מילוי PDF מתקדם</title>
-
-    <!-- External Libraries -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
-
-    <!-- Google Fonts -->
     <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@400;500;700&display=swap" rel="stylesheet">
-
     <style>
         * { margin:0; padding:0; box-sizing:border-box; }
-        body {
-            font-family:'Heebo', sans-serif;
-            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
-            direction:rtl;
-            min-height:100vh;
-            display:flex;
-            flex-direction:column;
-        }
+        body { font-family:'Heebo', sans-serif; background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); direction:rtl; min-height:100vh; display:flex; flex-direction:column; }
         .header { background:white; padding:20px; box-shadow:0 2px 20px rgba(0,0,0,0.1); text-align:center; }
         .header h1 { font-size:28px; margin-bottom:15px; }
         .file-controls { display:flex; flex-wrap:wrap; gap:15px; justify-content:center; }
@@ -36,7 +24,7 @@
         .main-content { flex:1; display:flex; background:#f8f9fa; }
         .pdf-viewer { flex:1; display:flex; justify-content:center; align-items:center; padding:20px; overflow:auto; }
         .pdf-container { position:relative; display:none; }
-        .pdf-canvas { display:block; max-width:100%; border:1px solid #ddd; }
+        .pdf-canvas { display:block; max-width:100%; width:100%; border:1px solid #ddd; height:auto; }
         .fields-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
         .field-overlay { position:absolute; border:2px solid #667eea; background:rgba(102,126,234,.1); border-radius:4px; pointer-events:auto; }
         .field-overlay.filled { border-color:#00b894; background:rgba(0,184,148,.1); }
@@ -47,28 +35,31 @@
         .field-item { border:1px solid #ddd; border-radius:6px; padding:10px; margin-bottom:10px; }
         .field-input { width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; }
         .toast-container { position:fixed; top:20px; right:20px; z-index:1000; }
-        .toast { background:white; border-radius:6px; padding:10px; margin-bottom:10px; box-shadow:0 4px 12px rgba(0,0,0,.15); display:flex; align-items:center; gap:8px; transform:translateX(300px); transition:.3s; }
+        .toast { background:white; border-radius:6px; padding:10px; margin-bottom:10px; box-shadow:0 4px 12px rgba(0,0,0,.15); display:flex; align-items:center; gap:8px; transform:translateX(300px); transition:transform .3s; }
         .toast.show { transform:translateX(0); }
         .toast.success { border-right:4px solid #00b894; }
         .toast.error { border-right:4px solid #e17055; }
+        @media (max-width: 768px) {
+            .main-content { flex-direction:column; }
+            .pdf-viewer, .sidebar { width:100%; max-width:100%; }
+            .pdf-viewer { order:1; padding:10px; }
+            .sidebar { order:2; border-right:none; border-top:1px solid #ddd; }
+            .pdf-canvas { max-width:100vw; width:100%; height:auto; }
+        }
     </style>
 </head>
 <body>
     <div id="toast-container" class="toast-container"></div>
-
     <div class="header">
         <h1>📋 PDF Filler Pro</h1>
         <div class="file-controls">
             <label for="pdf-input" class="file-input-label">📄 העלה PDF</label>
             <input type="file" id="pdf-input" accept=".pdf" style="display:none">
-
             <label for="json-input" class="file-input-label">🗂️ העלה JSON</label>
             <input type="file" id="json-input" accept=".json" style="display:none">
-
             <button id="export-btn" class="export-btn">💾 צור PDF ממולא</button>
         </div>
     </div>
-
     <div class="main-content">
         <div class="pdf-viewer">
             <div id="welcome-message">העלה PDF ו־JSON כדי להתחיל</div>
@@ -82,19 +73,19 @@
             <div id="fields-list" class="fields-list"></div>
         </div>
     </div>
-
 <script>
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 
 class PDFFillerTool {
   constructor() {
     this.pdfDoc=null; this.pdfArray=null; this.fieldsData=null; this.values={};
+    this.exportBtn = document.getElementById('export-btn');
     this.initEvents();
   }
   initEvents(){
     document.getElementById('pdf-input').addEventListener('change',e=>this.loadPDF(e.target.files[0]));
     document.getElementById('json-input').addEventListener('change',e=>this.loadJSON(e.target.files[0]));
-    document.getElementById('export-btn').addEventListener('click',()=>this.exportPDF());
+    this.exportBtn.addEventListener('click',()=>this.exportFilledPDF());
   }
   async loadPDF(file){
     if(!file)return;
@@ -109,6 +100,17 @@ class PDFFillerTool {
     document.getElementById('pdf-container').style.display='block';
     document.getElementById('welcome-message').style.display='none';
     this.checkReady();
+    window.addEventListener('resize',()=>this.resizeCanvas(viewport));
+    this.resizeCanvas(viewport);
+  }
+  resizeCanvas(viewport){
+    const canvas=document.getElementById('pdf-canvas');
+    if(window.innerWidth <= 768){
+      canvas.style.width = '100vw';
+    }else{
+      canvas.style.width = viewport.width + 'px';
+    }
+    canvas.style.height = 'auto';
   }
   async loadJSON(file){
     const text=await file.text(); const data=JSON.parse(text);
@@ -121,15 +123,22 @@ class PDFFillerTool {
       const div=document.createElement('div'); div.className='field-item';
       div.innerHTML=`<strong>${f.label_he}</strong><br><input class="field-input" data-id="${f.id}">`;
       list.appendChild(div);
-      div.querySelector('input').addEventListener('input',e=>this.values[f.id]=e.target.value);
+      div.querySelector('input').addEventListener('input',e=>{
+        this.values[f.id]=e.target.value;
+        this.checkReady(); // Update button if user fills fields after load
+      });
     });
   }
   checkReady(){
-    const ready=this.pdfDoc&&this.fieldsData; 
-    document.getElementById('export-btn').classList.toggle('enabled',!!ready);
+    const ready=this.pdfDoc&&this.fieldsData;
+    this.exportBtn.classList.toggle('enabled',!!ready);
+    this.exportBtn.disabled=!ready;
   }
-  async exportPDF(){
-    if(!this.pdfArray||!this.fieldsData){this.toast('חסר PDF או JSON','error');return;}
+  async exportFilledPDF(){
+    if(!this.pdfArray||!this.fieldsData){
+      this.toast('חסר PDF או JSON','error');
+      return;
+    }
     const pdf=await PDFLib.PDFDocument.load(this.pdfArray);
     const page=pdf.getPages()[0]; const {width,height}=page.getSize();
     const font=await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
@@ -138,9 +147,29 @@ class PDFFillerTool {
       const x=(f.xPct/100)*width, y=height-((f.yPct/100)*height);
       page.drawText(val,{x,y,size:f.fontSize||12,font});
     });
-    const bytes=await pdf.save(); const blob=new Blob([bytes],{type:'application/pdf'});
-    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
-    a.download='filled.pdf'; a.click();
+    const bytes=await pdf.save(); 
+    const blob=new Blob([bytes],{type:'application/pdf'});
+    const url=URL.createObjectURL(blob);
+    const isIOS = (() => {
+      const ua = window.navigator.userAgent;
+      return /iPad|iPhone|iPod/.test(ua) && !window.MSStream;
+    })();
+    const isSafari = (() => {
+      const ua = window.navigator.userAgent;
+      return /^((?!chrome|android).)*safari/i.test(ua);
+    })();
+    if(isIOS && isSafari){
+      window.open(url, '_blank');
+      this.toast('ה־PDF נפתח בלשונית חדשה לשמירה','success');
+    }else{
+      const a=document.createElement('a');
+      a.href=url;
+      a.download='filled.pdf';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      this.toast('ה־PDF הורד בהצלחה','success');
+    }
   }
   toast(msg,type){
     const box=document.createElement('div'); box.className=`toast ${type}`; box.textContent=msg;
