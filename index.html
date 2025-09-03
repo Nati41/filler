@@ -14,69 +14,142 @@
     <link href="https://fonts.googleapis.com/css2?family=David+Libre:wght@400;500;700&display=swap" rel="stylesheet">
 
     <style>
-        /* CSS STYLES REMOVED FOR BREVITY IN THIS SNIPPET */
+        * { margin:0; padding:0; box-sizing:border-box; }
+        body {
+            font-family:'Heebo', sans-serif;
+            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+            direction:rtl;
+            min-height:100vh;
+            display:flex;
+            flex-direction:column;
+        }
+        .header { background:white; padding:20px; box-shadow:0 2px 20px rgba(0,0,0,0.1); text-align:center; }
+        .header h1 { font-size:28px; margin-bottom:15px; }
+        .file-controls { display:flex; flex-wrap:wrap; gap:15px; justify-content:center; }
+        .file-input-label, .export-btn {
+            background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);
+            color:white; padding:10px 20px; border-radius:8px;
+            cursor:pointer; font-weight:600; min-width:160px; text-align:center;
+        }
+        .export-btn { background:linear-gradient(135deg,#00b894 0%,#00a085 100%); opacity:.5; pointer-events:none; }
+        .export-btn.enabled { opacity:1; pointer-events:auto; }
+        .main-content { flex:1; display:flex; background:#f8f9fa; }
+        .pdf-viewer { flex:1; display:flex; justify-content:center; align-items:center; padding:20px; overflow:auto; }
+        .pdf-container { position:relative; display:none; }
+        .pdf-canvas { display:block; max-width:100%; border:1px solid #ddd; }
+        .fields-overlay { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+        .field-overlay { position:absolute; border:2px solid #667eea; background:rgba(102,126,234,.1); border-radius:4px; pointer-events:auto; }
+        .field-overlay.filled { border-color:#00b894; background:rgba(0,184,148,.1); }
+        .field-text { font-family:'David Libre',sans-serif; font-size:14px; padding:2px; }
+        .sidebar { width:320px; background:white; border-right:1px solid #ddd; display:flex; flex-direction:column; }
+        .sidebar-header { background:linear-gradient(135deg,#667eea 0%,#764ba2 100%); color:white; padding:15px; }
+        .fields-list { flex:1; overflow-y:auto; padding:15px; }
+        .field-item { border:1px solid #ddd; border-radius:6px; padding:10px; margin-bottom:10px; }
+        .field-input { width:100%; padding:6px; border:1px solid #ddd; border-radius:4px; }
+        .toast-container { position:fixed; top:20px; right:20px; z-index:1000; }
+        .toast { background:white; border-radius:6px; padding:10px; margin-bottom:10px; box-shadow:0 4px 12px rgba(0,0,0,.15); display:flex; align-items:center; gap:8px; transform:translateX(300px); transition:.3s; }
+        .toast.show { transform:translateX(0); }
+        .toast.success { border-right:4px solid #00b894; }
+        .toast.error { border-right:4px solid #e17055; }
     </style>
 </head>
 <body>
-    <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
 
-    <!-- Header -->
     <div class="header">
         <h1>📋 PDF Filler Pro</h1>
         <div class="file-controls">
-            <div class="file-input-group">
-                <label for="pdf-input" class="file-input-label">📄 העלה PDF</label>
-                <input type="file" id="pdf-input" class="file-input" accept=".pdf">
-                <div id="pdf-status" class="file-status">נא להעלות קובץ PDF</div>
-            </div>
-            <div class="file-input-group">
-                <label for="json-input" class="file-input-label">🗂️ העלה JSON</label>
-                <input type="file" id="json-input" class="file-input" accept=".json">
-                <div id="json-status" class="file-status">נא להעלות קובץ מיפוי</div>
-            </div>
+            <label for="pdf-input" class="file-input-label">📄 העלה PDF</label>
+            <input type="file" id="pdf-input" accept=".pdf" style="display:none">
+
+            <label for="json-input" class="file-input-label">🗂️ העלה JSON</label>
+            <input type="file" id="json-input" accept=".json" style="display:none">
+
             <button id="export-btn" class="export-btn">💾 צור PDF ממולא</button>
         </div>
     </div>
 
-    <!-- Main Content -->
     <div class="main-content">
         <div class="pdf-viewer">
-            <div id="welcome-message" class="welcome-message">
-                <div class="welcome-icon">📄</div>
-                <div class="welcome-text">כלי מילוי PDF מתקדם</div>
-                <div class="welcome-subtext">העלה קובץ PDF וקובץ מיפוי JSON כדי להתחיל</div>
-            </div>
-            <div id="loading" class="loading" style="display: none;">
-                <div class="spinner"></div>
-                <div>טוען קובץ PDF...</div>
-            </div>
+            <div id="welcome-message">העלה PDF ו־JSON כדי להתחיל</div>
             <div id="pdf-container" class="pdf-container">
                 <canvas id="pdf-canvas" class="pdf-canvas"></canvas>
                 <div id="fields-overlay" class="fields-overlay"></div>
             </div>
         </div>
-
-        <!-- Sidebar -->
         <div class="sidebar">
-            <div class="sidebar-header">
-                <h2>שדות למילוי</h2>
-                <div class="sidebar-info">
-                    <span id="filled-count">0</span> מתוך <span id="total-count">0</span> שדות ממולאים
-                </div>
-            </div>
-            <div id="fields-list" class="fields-list">
-                <div class="welcome-message">
-                    <div class="welcome-icon">✏️</div>
-                    <div class="welcome-text">השדות יופיעו כאן</div>
-                    <div class="welcome-subtext">לאחר טעינת קבצי PDF ו-JSON</div>
-                </div>
-            </div>
+            <div class="sidebar-header">שדות למילוי</div>
+            <div id="fields-list" class="fields-list"></div>
         </div>
     </div>
 
-    <script>
-        // JAVASCRIPT REMOVED FOR BREVITY (already included in your provided code)
-    </script>
+<script>
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+class PDFFillerTool {
+  constructor() {
+    this.pdfDoc=null; this.pdfArray=null; this.fieldsData=null; this.values={};
+    this.initEvents();
+  }
+  initEvents(){
+    document.getElementById('pdf-input').addEventListener('change',e=>this.loadPDF(e.target.files[0]));
+    document.getElementById('json-input').addEventListener('change',e=>this.loadJSON(e.target.files[0]));
+    document.getElementById('export-btn').addEventListener('click',()=>this.exportPDF());
+  }
+  async loadPDF(file){
+    if(!file)return;
+    this.pdfArray=await file.arrayBuffer();
+    this.pdfDoc=await pdfjsLib.getDocument({data:this.pdfArray}).promise;
+    const page=await this.pdfDoc.getPage(1);
+    const viewport=page.getViewport({scale:1.5});
+    const canvas=document.getElementById('pdf-canvas');
+    const ctx=canvas.getContext('2d');
+    canvas.width=viewport.width; canvas.height=viewport.height;
+    await page.render({canvasContext:ctx,viewport}).promise;
+    document.getElementById('pdf-container').style.display='block';
+    document.getElementById('welcome-message').style.display='none';
+    this.checkReady();
+  }
+  async loadJSON(file){
+    const text=await file.text(); const data=JSON.parse(text);
+    this.fieldsData=data; this.renderFields();
+    this.toast('JSON נטען','success'); this.checkReady();
+  }
+  renderFields(){
+    const list=document.getElementById('fields-list'); list.innerHTML='';
+    this.fieldsData.fields.forEach(f=>{
+      const div=document.createElement('div'); div.className='field-item';
+      div.innerHTML=`<strong>${f.label_he}</strong><br><input class="field-input" data-id="${f.id}">`;
+      list.appendChild(div);
+      div.querySelector('input').addEventListener('input',e=>this.values[f.id]=e.target.value);
+    });
+  }
+  checkReady(){
+    const ready=this.pdfDoc&&this.fieldsData; 
+    document.getElementById('export-btn').classList.toggle('enabled',!!ready);
+  }
+  async exportPDF(){
+    if(!this.pdfArray||!this.fieldsData){this.toast('חסר PDF או JSON','error');return;}
+    const pdf=await PDFLib.PDFDocument.load(this.pdfArray);
+    const page=pdf.getPages()[0]; const {width,height}=page.getSize();
+    const font=await pdf.embedFont(PDFLib.StandardFonts.Helvetica);
+    this.fieldsData.fields.forEach(f=>{
+      const val=this.values[f.id]||''; if(!val)return;
+      const x=(f.xPct/100)*width, y=height-((f.yPct/100)*height);
+      page.drawText(val,{x,y,size:f.fontSize||12,font});
+    });
+    const bytes=await pdf.save(); const blob=new Blob([bytes],{type:'application/pdf'});
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+    a.download='filled.pdf'; a.click();
+  }
+  toast(msg,type){
+    const box=document.createElement('div'); box.className=`toast ${type}`; box.textContent=msg;
+    document.getElementById('toast-container').appendChild(box);
+    setTimeout(()=>box.classList.add('show'),10);
+    setTimeout(()=>{box.classList.remove('show');setTimeout(()=>box.remove(),300)},3000);
+  }
+}
+document.addEventListener('DOMContentLoaded',()=>new PDFFillerTool());
+</script>
 </body>
 </html>
